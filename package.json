@@ -1,0 +1,14 @@
+{
+  "name": "estudos-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Organizador de estudos para provas: progresso por matéria, flashcards, dúvidas e sincronização via Cloudflare.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

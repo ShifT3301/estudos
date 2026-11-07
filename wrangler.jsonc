@@ -1,0 +1,16 @@
+{
+  "name": "estudos-app",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "STATE",
+      "id": "COLE_AQUI_O_ID_DO_KV"
+    }
+  ]
+}
