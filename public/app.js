@@ -22,6 +22,31 @@
     });
   }
   function fmtDate(s) { var p = s.split("-"); return p[2] + "/" + p[1]; }
+  function toBR(iso) { if (!iso) return ""; var p = iso.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+  function maskDate(v) {
+    v = String(v);
+    // Colou "5/12/2026" ou "5.12.2026": completa com zeros.
+    var f = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/.exec(v.trim());
+    if (f) return f[1].padStart(2, "0") + "/" + f[2].padStart(2, "0") + "/" + f[3];
+    // Digitou um dígito e a barra ("5/"): vira "05/".
+    var m = /(^|[\/.\-\s])(\d)[\/.\-\s]$/.exec(v);
+    if (m) v = v.slice(0, v.length - 2) + "0" + m[2];
+    var d = v.replace(/\D/g, "").slice(0, 8), out = d.slice(0, 2);
+    if (d.length > 2) out += "/" + d.slice(2, 4);
+    if (d.length > 4) out += "/" + d.slice(4);
+    if (m && (d.length === 2 || d.length === 4)) out += "/";
+    return out;
+  }
+  // "17/11/2026" -> "2026-11-17"; devolve null se a data não existir ou o ano for implausível.
+  function parseBR(v) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+    if (!m) return null;
+    var d = +m[1], mo = +m[2], y = +m[3];
+    if (y < 2000 || y > 2100) return null;
+    var dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+    return y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0");
+  }
   function plural(n, a, b) { return n + " " + (n === 1 ? a : b); }
   function subj(id) { return state.subjects.find(function (s) { return s.id === id; }); }
   function findLesson(id) {
@@ -261,7 +286,10 @@
     var h = '<div class="row" style="margin-bottom:10px"><button class="btn small" data-act="back">← Matérias</button><div class="grow"></div>' + examChip(s, today) + "</div>";
     h += '<div class="card stack">' +
       '<label class="f">Matéria<input type="text" data-field="name" data-sid="' + s.id + '" data-k="name:' + s.id + '" value="' + esc(s.name) + '"></label>' +
-      '<div class="grid2"><label class="f">Data da prova<input type="date" data-field="examDate" data-sid="' + s.id + '" value="' + esc(s.examDate) + '"></label>' +
+      '<div class="grid2"><div class="f"><span>Data da prova</span><div class="datebox">' +
+        '<input type="text" inputmode="numeric" autocomplete="off" placeholder="dd/mm/aaaa" maxlength="10" aria-label="Data da prova (dia/mês/ano)" data-date="text" data-sid="' + s.id + '" data-k="exam:' + s.id + '" value="' + esc(toBR(s.examDate)) + '">' +
+        '<input type="date" class="datepick" min="2000-01-01" max="2100-12-31" tabindex="-1" aria-hidden="true" data-date="pick" data-sid="' + s.id + '" value="' + esc(s.examDate) + '">' +
+        '<button type="button" class="btn" data-act="pick-date" data-sid="' + s.id + '" aria-label="Abrir calendário">📅</button></div></div>' +
       '<label class="f">Deck de flashcards (link ou nome)<input type="text" data-field="deckLink" data-sid="' + s.id + '" data-k="deck:' + s.id + '" value="' + esc(s.deckLink) + '" placeholder="Anki: Farmaco P2"></label></div>' +
       (deck ? "<div>" + deck + "</div>" : "") + bars(s) + "</div>";
 
@@ -445,6 +473,11 @@
     "toggle-resolved": function (el) { var r = findLesson(el.dataset.lid); if (!r) return; r.l.doubtResolved = !r.l.doubtResolved; r.l.u = Date.now(); changed(); },
     "goto-lesson": function (el) { ui.tab = "materias"; save(K.tab, "materias"); ui.subjectId = el.dataset.sid; ui.open[el.dataset.lid] = true; render(); },
     "doubt-filter": function (el) { ui.doubtFilter = el.dataset.f; render(); },
+    "pick-date": function (el) {
+      var inp = main.querySelector('input.datepick[data-sid="' + el.dataset.sid + '"]');
+      if (!inp) return;
+      try { inp.showPicker(); } catch (e) { inp.focus(); inp.click(); }
+    },
     "del-lesson": function (el) {
       var r = findLesson(el.dataset.lid); if (!r) return;
       if (!confirm('Excluir a aula "' + r.l.title + '"?')) return;
@@ -485,8 +518,35 @@
     }
     changed(!final);
   }
-  main.addEventListener("input", function (ev) { if (ev.target.dataset.field && ev.target.type !== "checkbox" && ev.target.type !== "date") onField(ev.target, false); });
-  main.addEventListener("change", function (ev) { if (ev.target.dataset.field) onField(ev.target, true); });
+  function setExamDate(sid, iso) {
+    var s = subj(sid); if (!s || s.examDate === iso) return;
+    s.examDate = iso; s.u = Date.now();
+    changed();
+  }
+  main.addEventListener("input", function (ev) {
+    var el = ev.target;
+    if (el.dataset.date === "text") {
+      // Só grava quando a data está completa e existe; enquanto digita, nada é redesenhado.
+      el.value = maskDate(el.value);
+      var iso = parseBR(el.value);
+      el.classList.toggle("bad", el.value.length === 10 && !iso);
+      if (iso) setExamDate(el.dataset.sid, iso);
+      else if (el.value === "") setExamDate(el.dataset.sid, "");
+      return;
+    }
+    if (el.dataset.field && el.type !== "checkbox") onField(el, false);
+  });
+  main.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el.dataset.date === "pick") { if (el.value) setExamDate(el.dataset.sid, el.value); return; }
+    if (el.dataset.date === "text") {
+      // Saiu do campo com data incompleta ou inexistente: volta para a última data válida.
+      var s = subj(el.dataset.sid);
+      if (s && el.value && !parseBR(el.value)) { toast("Data inválida. Use dia/mês/ano, ex.: 17/11/2026"); el.value = toBR(s.examDate); el.classList.remove("bad"); }
+      return;
+    }
+    if (el.dataset.field) onField(el, true);
+  });
   main.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter" && ev.target.id === "newSubject") actions["add-subject"]();
   });

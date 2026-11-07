@@ -72,7 +72,11 @@ input[type=text], input[type=url], input[type=date], input[type=password], texta
 }
 textarea { resize: vertical; min-height: 70px; }
 input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-label.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+label.f, div.f { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.datebox { position: relative; display: flex; gap: 8px; }
+.datebox input[type=text] { flex: 1; min-width: 0; }
+.datebox input.bad { outline: 2px solid var(--danger); outline-offset: -1px; }
+.datepick { position: absolute; right: 0; bottom: 0; width: 44px; height: 100%; opacity: 0; pointer-events: none; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
 
