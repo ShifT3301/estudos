@@ -3,7 +3,7 @@
 Organizador de estudos para provas. Funciona no celular e no computador, com contas de usuário: cada pessoa entra com o seu usuário e senha e vê só o próprio progresso.
 
 - **Matérias com data de prova**: contagem regressiva e quantas **aulas por dia** faltam para fechar o conteúdo a tempo
-- **Aulas**: marque **Estudei** e **Flashcards** com um toque; a porcentagem de cada matéria é calculada sozinha
+- **Aulas**: marque **Estudei** e, para os flashcards, **criados** e **estudados**, com um toque; a aba *Hoje* mostra tudo numa tabelinha com caixas, e a porcentagem de cada matéria (aulas, cards criados, cards estudados) é calculada sozinha
 - **Importar aulas colando texto**: uma aula por linha (aceita listas com `-`, `*` ou `•`)
 - **Última revisão**: a aba *Hoje* mostra as aulas **esfriando** (7 dias ou mais sem revisar)
 - **Deck de flashcards** por matéria (link ou nome do deck do Anki)

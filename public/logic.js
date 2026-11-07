@@ -28,7 +28,7 @@
   }
 
   function newLesson(title) {
-    return { id: uid(), title: title, studied: false, cards: false, lastReview: null, doubt: "", doubtResolved: false, u: Date.now() };
+    return { id: uid(), title: title, studied: false, cards: false, cardsStudied: false, lastReview: null, doubt: "", doubtResolved: false, u: Date.now() };
   }
 
   // Garante o formato do estado e devolve uma cópia (nunca reaproveita objetos de entrada).
@@ -57,6 +57,7 @@
               title: String(l.title || ""),
               studied: !!l.studied,
               cards: !!l.cards,
+              cardsStudied: !!l.cardsStudied,
               lastReview: DATE_RE.test(l.lastReview || "") ? l.lastReview : null,
               doubt: String(l.doubt || ""),
               doubtResolved: !!l.doubtResolved,
@@ -107,12 +108,15 @@
     var n = subject.lessons.length;
     var studied = subject.lessons.filter(function (l) { return l.studied; }).length;
     var cards = subject.lessons.filter(function (l) { return l.cards; }).length;
+    var cardsStudied = subject.lessons.filter(function (l) { return l.cardsStudied; }).length;
     return {
       n: n,
       studied: studied,
       cards: cards,
+      cardsStudied: cardsStudied,
       pctStudied: n ? Math.round((100 * studied) / n) : 0,
       pctCards: n ? Math.round((100 * cards) / n) : 0,
+      pctCardsStudied: n ? Math.round((100 * cardsStudied) / n) : 0,
     };
   }
 
@@ -140,6 +144,20 @@
 
   function nextLessons(subject, count) {
     return subject.lessons.filter(function (l) { return !l.studied; }).slice(0, count);
+  }
+
+  // Linhas da aba "Hoje": as próximas `count` aulas ainda não estudadas, mais as aulas já estudadas
+  // com flashcards pendentes (até 5, além das estudadas hoje, para a linha não sumir enquanto você marca).
+  function todayLessons(subject, today, count) {
+    var unstudied = 0, pendingCards = 0, out = [];
+    subject.lessons.forEach(function (l) {
+      if (!l.studied) {
+        if (unstudied < count) { out.push(l); unstudied++; }
+      } else if (!l.cards || !l.cardsStudied) {
+        if (pendingCards < 5 || l.lastReview === today) { out.push(l); pendingCards++; }
+      }
+    });
+    return out;
   }
 
   // Aulas estudadas cuja última revisão tem COLD_DAYS dias ou mais (matérias com prova já passada ficam de fora).
@@ -186,6 +204,7 @@
     examInfo: examInfo,
     sortSubjects: sortSubjects,
     nextLessons: nextLessons,
+    todayLessons: todayLessons,
     coldLessons: coldLessons,
     doubts: doubts,
     parseLessons: parseLessons,

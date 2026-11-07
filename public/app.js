@@ -152,8 +152,9 @@
   function bars(s) {
     var p = L.progress(s);
     return '<div class="bars">' +
-      '<div class="barline">Estudadas<div class="track"><div class="fill" style="width:' + p.pctStudied + '%"></div></div><b>' + p.pctStudied + '%</b></div>' +
-      '<div class="barline">Flashcards<div class="track"><div class="fill cards" style="width:' + p.pctCards + '%"></div></div><b>' + p.pctCards + '%</b></div>' +
+      '<div class="barline">Aulas estudadas<div class="track"><div class="fill" style="width:' + p.pctStudied + '%"></div></div><b>' + p.pctStudied + '%</b></div>' +
+      '<div class="barline">Cards criados<div class="track"><div class="fill cards" style="width:' + p.pctCards + '%"></div></div><b>' + p.pctCards + '%</b></div>' +
+      '<div class="barline">Cards estudados<div class="track"><div class="fill cards2" style="width:' + p.pctCardsStudied + '%"></div></div><b>' + p.pctCardsStudied + '%</b></div>' +
       "</div>";
   }
 
@@ -172,6 +173,20 @@
     $("#tabs").innerHTML = tabs.map(function (t) {
       return '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>";
     }).join("");
+  }
+
+  // Tabela da aba Hoje: aula (com caixa "estudei") + colunas de flashcards criados e estudados.
+  function lessonTable(list) {
+    if (!list.length) return "";
+    var h = '<div class="cardtbl"><div></div><div class="th grp">Flashcards</div>' +
+      '<div></div><div class="th">Criados</div><div class="th">Estudados</div>';
+    list.forEach(function (l) {
+      var t = esc(l.title || "(sem título)");
+      h += '<label class="quick"><input type="checkbox" data-act="studied" data-lid="' + l.id + '"' + (l.studied ? " checked" : "") + '><span>' + t + "</span></label>" +
+        '<label class="chk"><input type="checkbox" data-act="cards" data-lid="' + l.id + '"' + (l.cards ? " checked" : "") + ' aria-label="Flashcards criados: ' + t + '"></label>' +
+        '<label class="chk c2"><input type="checkbox" data-act="cards-studied" data-lid="' + l.id + '"' + (l.cardsStudied ? " checked" : "") + ' aria-label="Flashcards estudados: ' + t + '"></label>';
+    });
+    return h + "</div>";
   }
 
   function loginBanner() {
@@ -197,17 +212,20 @@
         h += '<div class="card"><div class="row"><div class="grow title">' + esc(s.name) + "</div>" + examChip(s, today) + "</div>";
         if (!s.lessons.length) {
           h += '<p class="muted">Nenhuma aula cadastrada. <button class="linkbtn" data-act="open-subject" data-sid="' + s.id + '">Adicionar aulas</button></p>';
-        } else if (!e.remaining) {
-          h += '<p class="pace">Tudo estudado ✓</p><p class="muted">Agora é revisar e fazer flashcards.</p>';
         } else {
-          var per = Math.ceil(e.perDay);
-          var window_ = Math.max(e.days, 1);
-          h += '<div class="row" style="margin-top:8px"><span class="pace">' + plural(per, "aula", "aulas") + '/dia</span><span class="muted">' +
-            plural(e.remaining, "aula restante", "aulas restantes") + " em " + plural(window_, "dia", "dias") + "</span></div>";
-          var next = L.nextLessons(s, Math.min(Math.max(per, 1), 5));
-          h += next.map(function (l) {
-            return '<label class="quick"><input type="checkbox" data-act="studied" data-lid="' + l.id + '"><span>' + esc(l.title) + "</span></label>";
-          }).join("");
+          var slots = 0;
+          if (!e.remaining) {
+            h += '<p class="pace">Tudo estudado ✓</p>';
+          } else {
+            var per = Math.ceil(e.perDay);
+            var window_ = Math.max(e.days, 1);
+            slots = Math.min(Math.max(per, 1), 5);
+            h += '<div class="row" style="margin-top:8px"><span class="pace">' + plural(per, "aula", "aulas") + '/dia</span><span class="muted">' +
+              plural(e.remaining, "aula restante", "aulas restantes") + " em " + plural(window_, "dia", "dias") + "</span></div>";
+          }
+          var rows = L.todayLessons(s, today, slots);
+          h += lessonTable(rows);
+          if (!e.remaining && !rows.length) h += '<p class="muted">Flashcards em dia. Agora é revisar.</p>';
         }
         h += bars(s) + "</div>";
       });
@@ -244,7 +262,7 @@
     L.sortSubjects(state.subjects, today).forEach(function (s) {
       var p = L.progress(s);
       h += '<div class="card click" data-act="open-subject" data-sid="' + s.id + '"><div class="row"><div class="grow title">' + esc(s.name) + "</div>" +
-        examChip(s, today) + '</div><div class="muted" style="margin-top:4px">' + plural(p.n, "aula", "aulas") + " · " + p.studied + " estudadas · " + p.cards + " com flashcards</div>" + bars(s) + "</div>";
+        examChip(s, today) + '</div><div class="muted" style="margin-top:4px">' + plural(p.n, "aula", "aulas") + " · " + p.studied + " estudadas · " + p.cards + " cards criados · " + p.cardsStudied + " cards estudados</div>" + bars(s) + "</div>";
     });
     return h;
   }
@@ -261,7 +279,8 @@
     var h = '<li class="lesson' + (l.studied ? " done" : "") + '"><div class="row">' +
       '<span class="lt">' + esc(l.title || "(sem título)") + "</span>" +
       '<button class="tog' + (l.studied ? " on" : "") + '" data-act="studied" data-lid="' + l.id + '">Estudei</button>' +
-      '<button class="tog cards' + (l.cards ? " on" : "") + '" data-act="cards" data-lid="' + l.id + '">Flashcards</button>' +
+      '<button class="tog cards' + (l.cards ? " on" : "") + '" data-act="cards" data-lid="' + l.id + '">Cards criados</button>' +
+      '<button class="tog cards2' + (l.cardsStudied ? " on" : "") + '" data-act="cards-studied" data-lid="' + l.id + '">Cards estudados</button>' +
       '<button class="tog q' + qClass + '" data-act="expand" data-lid="' + l.id + '" aria-label="Dúvida e detalhes">' + (isOpen ? "▴" : "?") + "</button>" +
       "</div>";
     if (l.studied) {
@@ -464,7 +483,19 @@
       toast(plural(titles.length, "aula adicionada", "aulas adicionadas"));
     },
     studied: function (el) { var r = findLesson(el.dataset.lid); if (!r) return; toggleStudied(r.l); changed(); },
-    cards: function (el) { var r = findLesson(el.dataset.lid); if (!r) return; r.l.cards = !r.l.cards; r.l.u = Date.now(); changed(); },
+    // Desmarcar "criados" também desmarca "estudados"; marcar "estudados" marca "criados" e conta como revisão.
+    cards: function (el) {
+      var r = findLesson(el.dataset.lid); if (!r) return;
+      r.l.cards = !r.l.cards;
+      if (!r.l.cards) r.l.cardsStudied = false;
+      r.l.u = Date.now(); changed();
+    },
+    "cards-studied": function (el) {
+      var r = findLesson(el.dataset.lid); if (!r) return;
+      r.l.cardsStudied = !r.l.cardsStudied;
+      if (r.l.cardsStudied) { r.l.cards = true; r.l.lastReview = L.todayStr(); }
+      r.l.u = Date.now(); changed();
+    },
     review: function (el) {
       var r = findLesson(el.dataset.lid); if (!r) return;
       r.l.lastReview = L.todayStr(); r.l.studied = true; r.l.u = Date.now(); changed(); toast("Revisão registrada");
