@@ -7,8 +7,8 @@
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* armazenamento indisponível */ } }
 
   var state = L.normalize(load(K.state, null));
-  var meta = Object.assign({ base: 0, dirty: false }, load(K.meta, {}));
-  var cfg = Object.assign({ token: "" }, load(K.cfg, {}));
+  var meta = Object.assign({ base: 0, dirty: false, owner: "" }, load(K.meta, {}));
+  var cfg = Object.assign({ token: "", username: "" }, load(K.cfg, {}));
   var ui = { tab: load(K.tab, "hoje"), subjectId: null, doubtFilter: "pending", open: {} };
   var editVer = 0;
 
@@ -53,8 +53,8 @@
     $("#syncDetail").textContent = sync.msg;
   }
 
-  async function api(method, body) {
-    var r = await fetch("/api/state", {
+  async function api(method, body, path) {
+    var r = await fetch(path || "/api/state", {
       method: method,
       cache: "no-store",
       headers: { Authorization: "Bearer " + cfg.token, "content-type": "application/json" },
@@ -105,8 +105,11 @@
       }
       setSync("ok", "Última sincronização: " + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     } catch (e) {
-      if (e.message === "auth") setSync("error", "Senha incorreta. Confira a APP_TOKEN.");
-      else if (!navigator.onLine || e instanceof TypeError) setSync("offline", "Sem conexão. As mudanças ficam salvas aqui e sobem quando voltar.");
+      if (e.message === "auth") {
+        cfg.token = ""; save(K.cfg, cfg);
+        setSync("local");
+        openSettings("Sua sessão expirou. Entre de novo.");
+      } else if (!navigator.onLine || e instanceof TypeError) setSync("offline", "Sem conexão. As mudanças ficam salvas aqui e sobem quando voltar.");
       else setSync("error", "Falha ao sincronizar (" + e.message + "). Tente de novo.");
     } finally {
       sync.busy = false;
@@ -144,6 +147,12 @@
     $("#tabs").innerHTML = tabs.map(function (t) {
       return '<button data-tab="' + t[0] + '" class="' + (ui.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>";
     }).join("");
+  }
+
+  function loginBanner() {
+    if (cfg.token) return "";
+    return '<div class="card"><div class="row"><div class="grow muted">Seus dados estão só neste aparelho.</div>' +
+      '<button class="btn small primary" data-act="settings">Entrar ou criar conta</button></div></div>';
   }
 
   function viewToday() {
@@ -296,7 +305,7 @@
     if (ui.tab === "materias" && ui.subjectId) html = viewSubject(subj(ui.subjectId));
     else if (ui.tab === "materias") html = viewSubjects();
     else if (ui.tab === "duvidas") html = viewDoubts();
-    else html = viewToday();
+    else html = loginBanner() + viewToday();
     main.innerHTML = html;
 
     var p2 = $("#paste"); if (p2 && pasteVal) p2.value = pasteVal;
@@ -304,6 +313,70 @@
       var el = main.querySelector('[data-k="' + key + '"]');
       if (el) { el.focus(); try { el.setSelectionRange(s0, s1); } catch (e) { /* tipo sem seleção */ } }
     }
+  }
+
+  // ---------- conta ----------
+  var authMode = "login";
+
+  function renderAuth() {
+    var logged = !!cfg.token, reg = authMode === "register";
+    $("#authOut").hidden = logged;
+    $("#authIn").hidden = !logged;
+    $("#whoami").textContent = cfg.username;
+    $("#mLogin").classList.toggle("on", !reg);
+    $("#mRegister").classList.toggle("on", reg);
+    $("#inviteRow").hidden = !reg;
+    $("#authSubmit").textContent = reg ? "Criar conta" : "Entrar";
+    $("#authPass").autocomplete = reg ? "new-password" : "current-password";
+  }
+
+  function openSettings(msg) {
+    renderAuth();
+    $("#authMsg").textContent = msg || "";
+    $("#syncDetail").textContent = sync.msg;
+    if (!$("#settings").open) $("#settings").showModal();
+  }
+
+  async function submitAuth() {
+    var msg = $("#authMsg"), btn = $("#authSubmit");
+    var reg = authMode === "register";
+    var username = $("#authUser").value.trim();
+    var password = $("#authPass").value;
+    if (!username || !password) { msg.textContent = "Preencha usuário e senha."; return; }
+    btn.disabled = true; msg.textContent = "Aguarde…";
+    try {
+      var r = await fetch("/api/" + (reg ? "register" : "login"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username: username, password: password, invite: reg ? $("#authInvite").value.trim() : undefined }),
+      });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) { msg.textContent = j.message || "Não foi possível entrar."; return; }
+      onLoggedIn(j);
+    } catch (e) {
+      msg.textContent = "Sem conexão. Tente de novo.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function onLoggedIn(j) {
+    if (meta.owner && meta.owner !== j.username) {
+      // Os dados deste aparelho são de outra conta: não podem vazar para a nova.
+      state = L.normalize(null);
+      meta = { base: 0, dirty: false, owner: j.username };
+    } else {
+      meta.owner = j.username;
+      meta.base = 0;
+      meta.dirty = state.subjects.length > 0; // dados criados sem conta sobem para a conta
+    }
+    cfg.token = j.token; cfg.username = j.username;
+    save(K.cfg, cfg); persist();
+    $("#authPass").value = ""; $("#authInvite").value = ""; $("#authMsg").textContent = "";
+    authMode = "login";
+    renderAuth(); render();
+    $("#settings").close();
+    runSync();
   }
 
   // ---------- ações ----------
@@ -316,13 +389,22 @@
   }
 
   var actions = {
-    settings: function () { $("#tokenInput").value = cfg.token; $("#syncDetail").textContent = sync.msg; $("#settings").showModal(); },
+    settings: function () { openSettings(); },
     "close-settings": function () { $("#settings").close(); },
-    "save-token": function () {
-      cfg.token = $("#tokenInput").value.trim();
-      save(K.cfg, cfg);
-      meta.base = 0; meta.dirty = state.subjects.length > 0; persist();
-      runSync();
+    "auth-mode": function (el) { authMode = el.dataset.m; $("#authMsg").textContent = ""; renderAuth(); },
+    "auth-submit": function () { submitAuth(); },
+    logout: async function () {
+      if (meta.dirty && !confirm("Há mudanças ainda não sincronizadas que serão perdidas se você sair. Sair mesmo?")) return;
+      clearTimeout(sync.timer);
+      try { await api("POST", null, "/api/logout"); } catch (e) { /* sem conexão: a sessão expira sozinha */ }
+      // O progresso fica guardado na conta; limpa este aparelho para o próximo usuário não ver nada.
+      state = L.normalize(null);
+      meta = { base: 0, dirty: false, owner: "" };
+      cfg = { token: "", username: "" };
+      ui.subjectId = null;
+      save(K.cfg, cfg); persist();
+      setSync("local");
+      renderAuth(); render();
     },
     "sync-now": function () { runSync(); },
     export: function () {
@@ -407,6 +489,9 @@
   main.addEventListener("change", function (ev) { if (ev.target.dataset.field) onField(ev.target, true); });
   main.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter" && ev.target.id === "newSubject") actions["add-subject"]();
+  });
+  $("#settings").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && /^auth(User|Pass|Invite)$/.test(ev.target.id)) { ev.preventDefault(); submitAuth(); }
   });
 
   $("#importFile").addEventListener("change", function (ev) {

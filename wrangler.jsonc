@@ -7,10 +7,6 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
-  "kv_namespaces": [
-    {
-      "binding": "STATE",
-      "id": "COLE_AQUI_O_ID_DO_KV"
-    }
-  ]
+  // Banco D1 (SQLite do Cloudflare). Sem "database_id", o `wrangler deploy` cria o banco sozinho.
+  "d1_databases": [{ "binding": "DB" }]
 }

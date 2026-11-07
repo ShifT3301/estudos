@@ -21,6 +21,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--text); }
 body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: env(safe-area-inset-bottom); }
 button, input, textarea { font: inherit; color: inherit; }
@@ -112,7 +113,7 @@ dialog p { margin: 6px 0 12px; }
 <header>
   <div class="bar">
     <h1>📚 Estudos</h1>
-    <span id="sync" class="sync"><span class="dot"></span><span id="syncText">Só neste aparelho</span></span>
+    <span id="sync" class="sync" data-act="settings" style="cursor:pointer"><span class="dot"></span><span id="syncText">Só neste aparelho</span></span>
     <button class="btn ghost small" data-act="settings" aria-label="Configurações">⚙️</button>
   </div>
   <nav class="tabs" id="tabs"></nav>
@@ -120,17 +121,34 @@ dialog p { margin: 6px 0 12px; }
 <main id="main"></main>
 
 <dialog id="settings">
-  <h3>Sincronização e backup</h3>
+  <h3>Conta e backup</h3>
   <div class="stack">
-    <p class="muted">Use a mesma senha em todos os aparelhos. Ela é a <code>APP_TOKEN</code> que você configurou no Cloudflare. Sem senha, os dados ficam só neste aparelho.</p>
-    <label class="f">Senha de sincronização
-      <input type="password" id="tokenInput" autocomplete="current-password" placeholder="sua APP_TOKEN">
-    </label>
-    <div class="row">
-      <button class="btn primary" data-act="save-token">Salvar e sincronizar</button>
-      <button class="btn" data-act="sync-now">Sincronizar agora</button>
+    <div id="authOut" class="stack">
+      <p class="muted">Entre para guardar seu progresso na nuvem e abrir em qualquer aparelho. Sem conta, os dados ficam só neste aparelho.</p>
+      <div class="seg" style="margin-bottom:0">
+        <button data-act="auth-mode" data-m="login" id="mLogin" class="on">Entrar</button>
+        <button data-act="auth-mode" data-m="register" id="mRegister">Criar conta</button>
+      </div>
+      <label class="f">Usuário
+        <input type="text" id="authUser" autocomplete="username" autocapitalize="none" spellcheck="false">
+      </label>
+      <label class="f">Senha
+        <input type="password" id="authPass" autocomplete="current-password">
+      </label>
+      <label class="f" id="inviteRow" hidden>Código de convite
+        <input type="text" id="authInvite" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <div><button class="btn primary" data-act="auth-submit" id="authSubmit">Entrar</button></div>
+      <p class="muted" id="authMsg" role="status"></p>
     </div>
-    <p class="muted" id="syncDetail"></p>
+    <div id="authIn" class="stack" hidden>
+      <p>Conectado como <b id="whoami"></b>.</p>
+      <div class="row">
+        <button class="btn" data-act="sync-now">Sincronizar agora</button>
+        <button class="btn danger" data-act="logout">Sair</button>
+      </div>
+      <p class="muted" id="syncDetail"></p>
+    </div>
     <hr style="border:0;border-top:1px solid var(--line);width:100%">
     <div class="row">
       <button class="btn" data-act="export">Exportar backup</button>
